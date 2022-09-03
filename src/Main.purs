@@ -10,8 +10,8 @@ import Data.Generic.Rep (class Generic)
 import Data.Show.Generic (genericShow)
 import Data.String.CodeUnits (fromCharArray)
 import Effect (Effect)
-import Effect.Class.Console (logShow)
-import Parsing (Parser, fail, runParser)
+import Effect.Class.Console (log, logShow)
+import Parsing (Parser, runParser)
 import Parsing.Combinators (between, chainl1)
 import Parsing.Combinators.Array (many1)
 import Parsing.String (char)
@@ -19,9 +19,9 @@ import Parsing.String.Basic (alphaNum, skipSpaces, space)
 
 main :: Effect Unit
 main = do
-  case runParser "(\\x.x) x" term of
+  case runParser "(\\f. \\x. f x) (\\y. y) (\\z. z)" term of
     Left e -> logShow e
-    Right t -> logShow $ reduce t
+    Right t -> log $ prettyPrint t
 
 data Term = Var String | Abs String Term | App Term Term
 
@@ -56,3 +56,15 @@ nonApp p = (between (char '(') (char ')') p) <|> abs p <|> var
 
 term :: Parser String Term
 term = fix \p -> skipSpaces *> chainl1 (nonApp p) (space *> pure App)
+
+prettyPrint :: Term -> String
+prettyPrint = go 0
+  where
+  go :: Int -> Term -> String
+  go outerPrec = case _ of
+    Var v -> v
+    Abs v e -> showParen (outerPrec > 0) $ "\\" <> v <> ". " <> go 0 e
+    App e1 e2 -> showParen (outerPrec > 1) $ go 1 e1 <> " " <> go 2 e2
+
+  showParen :: Boolean -> String -> String
+  showParen b p = if b then "(" <> p <> ")" else p
